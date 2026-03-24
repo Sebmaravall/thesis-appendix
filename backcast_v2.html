@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>OMIE Backcast — Generator Revenue & Bid Analysis · 2025-01-01</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap');
 :root{
@@ -332,14 +333,28 @@ new Chart(document.getElementById('cPrice').getContext('2d'),{
     data:P,
     backgroundColor:P.map(p=>p>130?'rgba(255,94,58,.85)':p>80?'rgba(0,200,255,.7)':'rgba(57,232,122,.7)'),
     borderWidth:0,borderRadius:2,
+    datalabels:{
+      anchor:'end',align:'end',
+      formatter:v=>v.toFixed(0),
+      color:'var(--txt)',
+      font:{family:'Space Mono',size:7,weight:'600'},
+      rotation:-90,
+      offset:2,
+    }
   }]},
   options:{responsive:true,maintainAspectRatio:false,
-    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y.toFixed(2)+' €/MWh'}}},
+    layout:{padding:{top:28}},
+    plugins:{
+      legend:{display:false},
+      tooltip:{callbacks:{label:c=>c.parsed.y.toFixed(2)+' €/MWh'}},
+      datalabels:{},
+    },
     scales:{
       x:{grid:{color:'var(--grid)'},ticks:{color:'var(--mut)',font:{family:'Space Mono',size:9}}},
       y:{grid:{color:'var(--grid)'},ticks:{color:'var(--mut)',font:{family:'Space Mono',size:9},callback:v=>v+'€'}},
     }
-  }
+  },
+  plugins:[ChartDataLabels]
 });
 
 // ── CHART: REVENUE vs IR RENT (stacked bar, top 15) ──────────────────────
@@ -349,18 +364,33 @@ new Chart(document.getElementById('cRent').getContext('2d'),{
   data:{
     labels:top15.map(u=>u.u),
     datasets:[
-      {label:'IR Rent',data:top15.map(u=>u.rent),backgroundColor:'rgba(232,244,0,.85)',borderWidth:0,borderRadius:0},
-      {label:'Revenue above rent',data:top15.map(u=>Math.max(0,u.rev-u.rent)),backgroundColor:'rgba(0,200,255,.5)',borderWidth:0,borderRadius:0},
+      {label:'IR Rent',data:top15.map(u=>u.rent),backgroundColor:'rgba(232,244,0,.85)',borderWidth:0,borderRadius:0,
+       datalabels:{display:false}},
+      {label:'Revenue above rent',data:top15.map(u=>Math.max(0,u.rev-u.rent)),backgroundColor:'rgba(0,200,255,.5)',borderWidth:0,borderRadius:0,
+       datalabels:{
+         anchor:'end',align:'end',
+         formatter:(_,ctx)=>{
+           const total=top15[ctx.dataIndex].rev;
+           return fmtM(total)+'€';
+         },
+         color:'var(--txt)',
+         font:{family:'Space Mono',size:8,weight:'600'},
+         offset:2,
+       }},
     ]
   },
   options:{responsive:true,maintainAspectRatio:false,
+    layout:{padding:{top:24}},
     plugins:{legend:{labels:{color:'var(--mut)',font:{family:'Space Mono',size:9},boxWidth:10}},
-      tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtM(c.parsed.y)+'€'}}},
+      tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtM(c.parsed.y)+'€'}},
+      datalabels:{},
+    },
     scales:{
       x:{stacked:true,grid:{color:'var(--grid)'},ticks:{color:'var(--acc)',font:{family:'Space Mono',size:9,weight:'700'}}},
       y:{stacked:true,grid:{color:'var(--grid)'},ticks:{color:'var(--mut)',font:{family:'Space Mono',size:9},callback:v=>fmtM(v)+'€'}},
     }
-  }
+  },
+  plugins:[ChartDataLabels]
 });
 
 // ── CHART: DONUT rent decomposition ──────────────────────────────────────

@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>OMIE Backcast — Battery Model Validation · 2025-01-01</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=Syne:wght@400;600;700&display=swap');
 :root{
@@ -340,26 +339,8 @@ new Chart(document.getElementById('cAguayo').getContext('2d'),{
     {label:'Price €/MWh',data:prices,type:'line',borderColor:'rgba(255,214,0,.9)',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.3,yAxisID:'yP'},
   ]},
   options:{responsive:true,maintainAspectRatio:false,
-    layout:{padding:{top:20}},
     plugins:{
       legend:{labels:{color:'var(--mut)',font:{family:'JetBrains Mono',size:9},boxWidth:10}},
-      datalabels:{
-        display:ctx=>{
-          // Show labels only on non-zero MW bars and on every other price point
-          if(ctx.datasetIndex===2) return ctx.dataIndex%3===0; // price line: every 3rd
-          return Math.abs(ctx.parsed.y)>0.1; // MW bars: only active hours
-        },
-        formatter:(v,ctx)=>{
-          if(ctx.datasetIndex===2) return v.toFixed(0)+'€';
-          return Math.abs(v).toFixed(0);
-        },
-        anchor:ctx=>ctx.datasetIndex===2?'end':'end',
-        align:ctx=>ctx.datasetIndex===2?'end':'end',
-        color:ctx=>ctx.datasetIndex===2?'rgba(255,214,0,.9)':ctx.parsed.y<0?'rgba(255,112,67,.9)':'rgba(124,255,212,.9)',
-        font:{family:'JetBrains Mono',size:8,weight:'600'},
-        rotation:ctx=>ctx.datasetIndex<2?-90:0,
-        offset:2,
-      }
     },
     scales:{
       x:{grid:{color:'var(--grid)'},ticks:{color:'var(--mut)',font:{family:'JetBrains Mono',size:9}}},
@@ -367,7 +348,52 @@ new Chart(document.getElementById('cAguayo').getContext('2d'),{
       yP:{position:'right',grid:{display:false},ticks:{color:'rgba(255,214,0,.8)',font:{family:'JetBrains Mono',size:9},callback:v=>v+'€'}},
     }
   },
-  plugins:[ChartDataLabels]
+  plugins:[{
+    id:'aguayoLabels',
+    afterDatasetsDraw(chart){
+      const {ctx,scales:{x,yMW,yP},data}=chart;
+      ctx.save();
+      ctx.font='700 8px "JetBrains Mono", monospace';
+      // MW bars (datasets 0 and 1)
+      [0,1].forEach(di=>{
+        data.datasets[di].data.forEach((val,i)=>{
+          if(Math.abs(val)<0.1) return;
+          const xPos=x.getPixelForValue(i);
+          const yPos=yMW.getPixelForValue(val);
+          const label=Math.abs(val).toFixed(0);
+          const tw=ctx.measureText(label).width;
+          const pad=2,rh=12,rw=tw+pad*2;
+          const rx=xPos-rw/2, ry=val>0?yPos-rh-2:yPos+2;
+          ctx.fillStyle=di===0?'rgba(180,60,20,0.9)':'rgba(0,100,80,0.9)';
+          ctx.beginPath();
+          ctx.roundRect(rx,ry,rw,rh,2);
+          ctx.fill();
+          ctx.fillStyle='#fff';
+          ctx.textAlign='center';
+          ctx.textBaseline='middle';
+          ctx.fillText(label,xPos,ry+rh/2);
+        });
+      });
+      // Price line (dataset 2) — every 3rd point
+      data.datasets[2].data.forEach((val,i)=>{
+        if(i%3!==0) return;
+        const xPos=x.getPixelForValue(i);
+        const yPos=yP.getPixelForValue(val);
+        const label=val.toFixed(0)+'€';
+        const tw=ctx.measureText(label).width;
+        const pad=2,rh=12,rw=tw+pad*2;
+        ctx.fillStyle='rgba(150,120,0,0.9)';
+        ctx.beginPath();
+        ctx.roundRect(xPos-rw/2,yPos-rh-4,rw,rh,2);
+        ctx.fill();
+        ctx.fillStyle='#fff';
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        ctx.fillText(label,xPos,yPos-rh/2-4);
+      });
+      ctx.restore();
+    }
+  }]
 });
 
 // ── Three methods bar chart ───────────────────────────────────────────────
@@ -381,31 +407,51 @@ new Chart(document.getElementById('cMethods').getContext('2d'),{
     ]
   },
   options:{responsive:true,maintainAspectRatio:false,
-    layout:{padding:{top:32}},
+    layout:{padding:{top:30}},
     plugins:{
       legend:{labels:{color:'var(--mut)',font:{family:'JetBrains Mono',size:9},boxWidth:10}},
       tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(Math.abs(c.parsed.y),2)+' €'}},
-      datalabels:{
-        anchor:'end',align:'end',
-        formatter:(v,ctx)=>{
-          // On the top dataset (Revenue), show the net value
-          if(ctx.datasetIndex===0){
-            const net=ag.method_A.turb_rev - ag.method_A.pump_cost;
-            return 'Net: +'+fmt(net,0)+'€';
-          }
-          return fmt(Math.abs(v),0)+'€';
-        },
-        color:ctx=>ctx.datasetIndex===0?'rgba(124,255,212,.95)':'rgba(255,112,67,.95)',
-        font:{family:'JetBrains Mono',size:9,weight:'600'},
-        offset:4,
-      }
     },
     scales:{
       x:{grid:{color:'var(--grid)'},ticks:{color:'var(--mut)',font:{family:'JetBrains Mono',size:9}}},
       y:{grid:{color:'var(--grid)'},ticks:{color:'var(--mut)',font:{family:'JetBrains Mono',size:9},callback:v=>(v/1000).toFixed(0)+'k€'}},
     }
   },
-  plugins:[ChartDataLabels]
+  plugins:[{
+    id:'methodLabels',
+    afterDatasetsDraw(chart){
+      const {ctx,scales:{x,y},data}=chart;
+      ctx.save();
+      ctx.font='700 9px "JetBrains Mono", monospace';
+      data.datasets.forEach((ds,di)=>{
+        ds.data.forEach((val,i)=>{
+          if(!val) return;
+          const xPos=x.getPixelForValue(i);
+          const yPos=y.getPixelForValue(val);
+          const isRev=di===0;
+          let label=fmt(Math.abs(val),0)+'€';
+          // On revenue bars also show net
+          if(isRev){
+            const net=ag.method_A.turb_rev-ag.method_A.pump_cost;
+            label='Net +'+fmt(net,0)+'€';
+          }
+          const tw=ctx.measureText(label).width;
+          const pad=3,rh=14,rw=tw+pad*2;
+          const ry=isRev?yPos-rh-4:yPos+4;
+          const rx=xPos-rw/2;
+          ctx.fillStyle=isRev?'rgba(0,100,80,0.9)':'rgba(160,60,20,0.9)';
+          ctx.beginPath();
+          ctx.roundRect(rx,ry,rw,rh,3);
+          ctx.fill();
+          ctx.fillStyle='#fff';
+          ctx.textAlign='center';
+          ctx.textBaseline='middle';
+          ctx.fillText(label,xPos,ry+rh/2);
+        });
+      });
+      ctx.restore();
+    }
+  }]
 });
 
 // ── All plants summary table ──────────────────────────────────────────────

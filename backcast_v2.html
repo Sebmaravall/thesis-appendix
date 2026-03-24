@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>OMIE Backcast — Generator Revenue & Bid Analysis · 2025-01-01</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap');
 :root{
@@ -327,35 +326,55 @@ document.getElementById('k6').textContent = M.n_negative;
 
 // ── CHART: PRICE PROFILE ─────────────────────────────────────────────────
 const P = D.prices;
-new Chart(document.getElementById('cPrice').getContext('2d'),{
-  type:'bar',
-  data:{labels:HOURS,datasets:[{
-    data:P,
-    backgroundColor:P.map(p=>p>130?'rgba(255,94,58,.85)':p>80?'rgba(0,200,255,.7)':'rgba(57,232,122,.7)'),
-    borderWidth:0,borderRadius:2,
-    datalabels:{
-      anchor:'end',align:'end',
-      formatter:v=>v.toFixed(0),
-      color:'var(--txt)',
-      font:{family:'Space Mono',size:7,weight:'600'},
-      rotation:-90,
-      offset:2,
-    }
-  }]},
-  options:{responsive:true,maintainAspectRatio:false,
-    layout:{padding:{top:28}},
-    plugins:{
-      legend:{display:false},
-      tooltip:{callbacks:{label:c=>c.parsed.y.toFixed(2)+' €/MWh'}},
-      datalabels:{},
+(()=>{
+  const priceChart = new Chart(document.getElementById('cPrice').getContext('2d'),{
+    type:'bar',
+    data:{labels:HOURS,datasets:[{
+      data:P,
+      backgroundColor:P.map(p=>p>130?'rgba(255,94,58,.85)':p>80?'rgba(0,200,255,.7)':'rgba(57,232,122,.7)'),
+      borderWidth:0,borderRadius:2,
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      layout:{padding:{top:26}},
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:c=>c.parsed.y.toFixed(2)+' €/MWh'}},
+        afterDraw:{},
+      },
+      scales:{
+        x:{grid:{color:'var(--grid)'},ticks:{color:'var(--mut)',font:{family:'Space Mono',size:9}}},
+        y:{grid:{color:'var(--grid)'},ticks:{color:'var(--mut)',font:{family:'Space Mono',size:9},callback:v=>v+'€'}},
+      }
     },
-    scales:{
-      x:{grid:{color:'var(--grid)'},ticks:{color:'var(--mut)',font:{family:'Space Mono',size:9}}},
-      y:{grid:{color:'var(--grid)'},ticks:{color:'var(--mut)',font:{family:'Space Mono',size:9},callback:v=>v+'€'}},
-    }
-  },
-  plugins:[ChartDataLabels]
-});
+    plugins:[{
+      id:'priceLabels',
+      afterDatasetsDraw(chart){
+        const {ctx,data,chartArea:{top},scales:{x,y}}=chart;
+        ctx.save();
+        data.datasets[0].data.forEach((val,i)=>{
+          const xPos=x.getPixelForValue(i);
+          const yPos=y.getPixelForValue(val);
+          const label=val.toFixed(1);
+          ctx.font='700 8px "Space Mono", monospace';
+          const tw=ctx.measureText(label).width;
+          const pad=3, rh=14, rw=tw+pad*2;
+          const rx=xPos-rw/2, ry=yPos-rh-3;
+          // pill background — same family as bar colour
+          ctx.fillStyle=val>130?'rgba(180,40,20,0.9)':val>80?'rgba(0,110,140,0.9)':'rgba(10,100,40,0.9)';
+          ctx.beginPath();
+          ctx.roundRect(rx,ry,rw,rh,3);
+          ctx.fill();
+          // text
+          ctx.fillStyle='#ffffff';
+          ctx.textAlign='center';
+          ctx.textBaseline='middle';
+          ctx.fillText(label,xPos,ry+rh/2);
+        });
+        ctx.restore();
+      }
+    }]
+  });
+})();
 
 // ── CHART: REVENUE vs IR RENT (stacked bar, top 15) ──────────────────────
 const top15 = D.units_detail.filter(u=>u.mwg>0).slice(0,15);
@@ -364,33 +383,46 @@ new Chart(document.getElementById('cRent').getContext('2d'),{
   data:{
     labels:top15.map(u=>u.u),
     datasets:[
-      {label:'IR Rent',data:top15.map(u=>u.rent),backgroundColor:'rgba(232,244,0,.85)',borderWidth:0,borderRadius:0,
-       datalabels:{display:false}},
-      {label:'Revenue above rent',data:top15.map(u=>Math.max(0,u.rev-u.rent)),backgroundColor:'rgba(0,200,255,.5)',borderWidth:0,borderRadius:0,
-       datalabels:{
-         anchor:'end',align:'end',
-         formatter:(_,ctx)=>{
-           const total=top15[ctx.dataIndex].rev;
-           return fmtM(total)+'€';
-         },
-         color:'var(--txt)',
-         font:{family:'Space Mono',size:8,weight:'600'},
-         offset:2,
-       }},
+      {label:'IR Rent',data:top15.map(u=>u.rent),backgroundColor:'rgba(232,244,0,.85)',borderWidth:0,borderRadius:0},
+      {label:'Revenue above rent',data:top15.map(u=>Math.max(0,u.rev-u.rent)),backgroundColor:'rgba(0,200,255,.5)',borderWidth:0,borderRadius:0},
     ]
   },
   options:{responsive:true,maintainAspectRatio:false,
-    layout:{padding:{top:24}},
+    layout:{padding:{top:26}},
     plugins:{legend:{labels:{color:'var(--mut)',font:{family:'Space Mono',size:9},boxWidth:10}},
       tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtM(c.parsed.y)+'€'}},
-      datalabels:{},
     },
     scales:{
       x:{stacked:true,grid:{color:'var(--grid)'},ticks:{color:'var(--acc)',font:{family:'Space Mono',size:9,weight:'700'}}},
       y:{stacked:true,grid:{color:'var(--grid)'},ticks:{color:'var(--mut)',font:{family:'Space Mono',size:9},callback:v=>fmtM(v)+'€'}},
     }
   },
-  plugins:[ChartDataLabels]
+  plugins:[{
+    id:'rentLabels',
+    afterDatasetsDraw(chart){
+      const {ctx,scales:{x,y}}=chart;
+      ctx.save();
+      top15.forEach((u,i)=>{
+        const total=u.rev;
+        const xPos=x.getPixelForValue(i);
+        const yPos=y.getPixelForValue(total);
+        const label=fmtM(total)+'€';
+        ctx.font='700 8px "Space Mono", monospace';
+        const tw=ctx.measureText(label).width;
+        const pad=3, rh=14, rw=tw+pad*2;
+        const rx=xPos-rw/2, ry=yPos-rh-3;
+        ctx.fillStyle='rgba(0,100,120,0.9)';
+        ctx.beginPath();
+        ctx.roundRect(rx,ry,rw,rh,3);
+        ctx.fill();
+        ctx.fillStyle='#ffffff';
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        ctx.fillText(label,xPos,ry+rh/2);
+      });
+      ctx.restore();
+    }
+  }]
 });
 
 // ── CHART: DONUT rent decomposition ──────────────────────────────────────
